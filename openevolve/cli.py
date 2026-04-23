@@ -215,16 +215,38 @@ async def main_async() -> int:
 
         traceback.print_exc()
         write_usage_event("run_end", status="error", error=str(e))
+
         log_dir = None
+        iterations_completed = None
+        best_metrics = None
+        usage_summary = None
         try:
             log_dir = os.path.join(openevolve.output_dir, "logs")
+            iterations_completed = getattr(openevolve.database, "last_iteration", None)
+            try:
+                best = openevolve.database.get_best_program()
+                if best is not None:
+                    best_metrics = dict(best.metrics or {})
+            except Exception:
+                pass
+            usage_path = os.path.join(openevolve.output_dir, "usage.jsonl")
+            if os.path.exists(usage_path):
+                usage_summary = summarize_usage(
+                    usage_path, run_id=os.environ.get("OPENEVOLVE_RUN_ID")
+                )
         except NameError:
             pass
+        except Exception as diag_err:
+            logger.warning("Failed to collect failure diagnostics: %s", diag_err)
+
         notify(
             format_run_failure(
                 str(e),
                 run_id=os.environ.get("OPENEVOLVE_RUN_ID"),
                 log_dir=log_dir,
+                iterations_completed=iterations_completed,
+                best_metrics=best_metrics,
+                usage_summary=usage_summary,
             )
         )
         return 1

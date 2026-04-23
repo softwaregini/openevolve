@@ -79,14 +79,32 @@ def format_run_failure(
     error: str,
     run_id: Optional[str] = None,
     log_dir: Optional[str] = None,
+    iterations_completed: Optional[int] = None,
+    best_metrics: Optional[dict] = None,
+    usage_summary: Optional[dict] = None,
 ) -> str:
     header = ":x: *OpenEvolve run failed*"
     if run_id:
         header += f" — run `{run_id}`"
     lines = [header, f"```{error}```"]
+    if iterations_completed is not None:
+        lines.append(f"*Iterations completed:* {iterations_completed}")
+    if best_metrics:
+        lines.append("*Best metrics so far:*")
+        for k, v in best_metrics.items():
+            if isinstance(v, (int, float)):
+                lines.append(f"  • `{k}`: {v:.4f}")
+            else:
+                lines.append(f"  • `{k}`: {v}")
+    if usage_summary and usage_summary.get("calls"):
+        t = usage_summary["total"]
+        lines.append(
+            f"*Tokens spent:* {usage_summary['calls']} calls, {t['total']} total"
+        )
     if log_dir:
         lines.append(f"*Logs:* `{log_dir}`")
-    return "\n".join(lines)
+    lines.append(f"_Rerun with `/openevolve rerun`_" if run_id else "")
+    return "\n".join(l for l in lines if l)
 
 
 def notify(text: str, channel: Optional[str] = None) -> None:
