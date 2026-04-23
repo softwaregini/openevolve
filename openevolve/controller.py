@@ -83,6 +83,9 @@ class OpenEvolve:
         )
         os.makedirs(self.output_dir, exist_ok=True)
 
+        # Durable per-call token-usage log. Workers inherit this env var via spawn.
+        os.environ["OPENEVOLVE_USAGE_LOG"] = os.path.join(self.output_dir, "usage.jsonl")
+
         # Set up logging
         self._setup_logging()
 

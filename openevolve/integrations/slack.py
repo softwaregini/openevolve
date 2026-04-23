@@ -33,6 +33,7 @@ def format_run_result(
     program_id: str,
     metrics: dict,
     checkpoint_path: Optional[str] = None,
+    usage_summary: Optional[dict] = None,
 ) -> str:
     """Format a run summary for Slack (Markdown-ish, Slack-flavored)."""
     lines = [f":white_check_mark: *OpenEvolve run complete* — best program `{program_id}`"]
@@ -43,6 +44,12 @@ def format_run_result(
                 lines.append(f"  • `{k}`: {v:.4f}")
             else:
                 lines.append(f"  • `{k}`: {v}")
+    if usage_summary and usage_summary.get("calls"):
+        t = usage_summary["total"]
+        lines.append(
+            f"*Tokens:* {usage_summary['calls']} calls, "
+            f"{t['input']} in / {t['output']} out / {t['total']} total"
+        )
     if checkpoint_path:
         lines.append(f"*Checkpoint:* `{checkpoint_path}`")
     return "\n".join(lines)
@@ -81,7 +88,29 @@ def _handle_stats(args: list[str]) -> str:
 
 
 def _handle_tokens(args: list[str]) -> str:
-    return "tokens: not yet wired — will report LLM usage from evolution_trace"
+    """Summarize token usage from the most recent run's usage.jsonl."""
+    import glob
+
+    from openevolve.llm.usage import summarize
+
+    # Find the most recently modified usage.jsonl under any openevolve_output/ tree
+    # rooted at CWD. Users typically run from an example dir, so CWD is the right base.
+    candidates = glob.glob("**/openevolve_output/usage.jsonl", recursive=True)
+    if not candidates:
+        return "No `usage.jsonl` found under the current directory."
+    path = max(candidates, key=lambda p: os.path.getmtime(p))
+    s = summarize(path)
+    if s["calls"] == 0:
+        return f"`{path}` is empty — no calls recorded yet."
+    lines = [f"*Token usage* (from `{path}`)", f"Total calls: {s['calls']}"]
+    for (provider, model), b in sorted(s["per_model"].items()):
+        lines.append(
+            f"• `{provider}/{model}` — {b['calls']} calls, "
+            f"{b['input']} in / {b['output']} out / {b['total']} total"
+        )
+    t = s["total"]
+    lines.append(f"*Grand total:* {t['input']} in / {t['output']} out / {t['total']} total")
+    return "\n".join(lines)
 
 
 def _handle_rerun(args: list[str]) -> str:

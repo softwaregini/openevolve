@@ -21,6 +21,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 from openevolve.llm.base import LLMInterface
+from openevolve.llm import usage
 
 logger = logging.getLogger(__name__)
 
@@ -128,5 +129,12 @@ class BedrockLLM(LLMInterface):
     async def _converse(self, request: Dict[str, Any]) -> str:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, lambda: self.client.converse(**request))
-        logger.debug(f"Bedrock usage: {response.get('usage')}")
+        u = response.get("usage") or {}
+        usage.record(
+            provider="bedrock",
+            model=self.model,
+            input_tokens=u.get("inputTokens"),
+            output_tokens=u.get("outputTokens"),
+            total_tokens=u.get("totalTokens"),
+        )
         return response["output"]["message"]["content"][0]["text"]

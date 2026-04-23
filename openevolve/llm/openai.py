@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 import openai
 
 from openevolve.llm.base import LLMInterface
+from openevolve.llm import usage
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +224,15 @@ class OpenAILLM(LLMInterface):
         logger = logging.getLogger(__name__)
         logger.debug(f"API parameters: {params}")
         logger.debug(f"API response: {response.choices[0].message.content}")
+        u = getattr(response, "usage", None)
+        if u is not None:
+            usage.record(
+                provider="openai",
+                model=self.model,
+                input_tokens=getattr(u, "prompt_tokens", None),
+                output_tokens=getattr(u, "completion_tokens", None),
+                total_tokens=getattr(u, "total_tokens", None),
+            )
         return response.choices[0].message.content
 
     async def _manual_wait_for_answer(
