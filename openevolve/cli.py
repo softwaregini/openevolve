@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from openevolve import OpenEvolve
 from openevolve.config import Config, load_config
+from openevolve.integrations.slack import format_run_failure, format_run_result, notify
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,13 @@ async def main_async() -> int:
             print(f"\nLatest checkpoint saved at: {latest_checkpoint}")
             print(f"To resume, use: --checkpoint {latest_checkpoint}")
 
+        notify(
+            format_run_result(
+                program_id=getattr(best_program, "id", "?"),
+                metrics=dict(best_program.metrics or {}),
+                checkpoint_path=latest_checkpoint,
+            )
+        )
         return 0
 
     except Exception as e:
@@ -168,6 +176,7 @@ async def main_async() -> int:
         import traceback
 
         traceback.print_exc()
+        notify(format_run_failure(str(e)))
         return 1
 
 

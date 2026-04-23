@@ -954,3 +954,19 @@ Typical change recipes
 - New LLM provider → subclass in openevolve/llm/, wire into ensemble.py, add config in config.py.
 - New evolution feature dimension → extend MAP-Elites feature extraction in database.py, add targeted test in tests/test_map_elites_features.py.
 - New example task → copy an examples/<task>/ dir (initial_program.py + evaluator.py + config.yaml).
+
+Local Python environment
+
+- Python >=3.10 required. We use pyenv with a virtualenv called `openev` on 3.12.6; `.python-version` (gitignored) activates it on `cd`.
+- Setup from scratch: `pyenv virtualenv 3.12.6 openev && pyenv local openev && pip install -e '.[dev]'`.
+
+Slack bot (Socket Mode)
+
+Thin wrapper in `openevolve/integrations/slack.py`, entrypoint `scripts/slack_bot.py`. Lets you drive experiments from Slack via `/openevolve <subcommand>` without exposing any public URL.
+
+- Install extra: `pip install -e '.[slack]'`
+- Create a Slack app (api.slack.com/apps) → enable Socket Mode → generate App-Level Token with `connections:write` (xapp-…) → Bot scopes `chat:write`, `commands` → install → grab Bot Token (xoxb-…) → register slash command `/openevolve` (no Request URL needed under Socket Mode).
+- Put tokens in `.env` (gitignored): `SLACK_APP_TOKEN`, `SLACK_BOT_TOKEN`, optional `SLACK_DEFAULT_CHANNEL`.
+- Run: `set -a; source .env; set +a; python scripts/slack_bot.py`
+- Try: `/openevolve ping` in Slack → `pong`. Subcommands `stats`, `tokens`, `rerun` are stubs for now.
+- Outbound: `from openevolve.integrations.slack import notify; notify("text")` — no-op if tokens or default channel missing.

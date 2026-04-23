@@ -30,6 +30,7 @@ MANIFEST
 venv/
 env/
 ENV/
+.python-version
 
 # IDE
 .idea/
@@ -56,3 +57,4 @@ htmlcov/
 # For SR
 secrets.yaml
 problems
+.env
