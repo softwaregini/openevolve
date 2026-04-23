@@ -886,3 +886,71 @@ If you use OpenEvolve in your research, please cite:
 *If OpenEvolve helps you discover breakthrough algorithms, please consider starring this repository.*
 
 </div>
+
+# Stackgini Notes
+
+OpenEvolve — Quickstart & Map
+
+What it is
+
+An evolutionary coding agent (open-source AlphaEvolve). LLMs mutate code inside # EVOLVE-BLOCK-START/END markers; programs are scored by an evaluator; MAP-Elites + islands maintain diversity across generations.
+
+Quickstart
+
+pip install -e ".[dev]"            # or: make install
+make test                          # unittest discover tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+make lint                          # black formatting
+
+# Run evolution
+python openevolve-run.py path/to/initial_program.py path/to/evaluator.py \                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+--config path/to/config.yaml --iterations 1000
+
+# Resume
+python openevolve-run.py <prog> <eval> --config <cfg> \                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+--checkpoint path/to/checkpoint_directory --iterations 50
+
+# Visualize
+python scripts/visualizer.py --path examples/function_minimization/openevolve_output/checkpoints/checkpoint_100/                                                                                                                                                                                                                                                                                                                                                                                                                
+Needs Python ≥3.10 and an OpenAI-compatible LLM endpoint (API key via env).
+
+Where to find what
+
+- openevolve/controller.py — main orchestrator (ProcessPoolExecutor over iterations).
+- openevolve/iteration.py — single worker: sample → prompt → LLM → evaluate → store.
+- openevolve/process_parallel.py — heavyweight parallel execution (largest runtime file, 827 lines).
+- openevolve/database.py — MAP-Elites grid + islands + migration + checkpointing (2.5k lines, the hot spot).
+- openevolve/evaluator.py — cascade evaluation (quick → basic → full), timeouts, artifacts.
+- openevolve/llm/ — base.py, openai.py, ensemble.py (weighted multi-model).
+- openevolve/prompt/ — sampler.py builds context-aware prompts; templates.py + prompts/ for templates.
+- openevolve/config.py — YAML schema (hierarchical: llm / evolution / database / evaluator).
+- openevolve/api.py + cli.py — programmatic and CLI entrypoints.
+- openevolve/evolution_trace.py + utils/trace_export_utils.py — tracing/telemetry.
+- configs/ — default_config.yaml + island/early-stopping examples.
+- examples/ — end-to-end reference runs (circle_packing, function_minimization, mlx_metal_kernel_opt, rust_adaptive_sort, symbolic_regression, etc.). Each is the best way to learn the conventions.
+- tests/ — unittest; lots of island/migration/MAP-Elites coverage. Mirror naming when adding tests.
+- scripts/visualizer.py — Flask/static viz for checkpoints.
+
+Key patterns to respect
+
+- Evolve markers: only code between # EVOLVE-BLOCK-START / # EVOLVE-BLOCK-END is mutated.
+- Island-based evolution: populations are isolated; migration is lazy, based on generations not iterations. Don't reach across islands directly — see database.py island APIs.
+- MAP-Elites grid: programs keyed by feature cells; preserve grid stability (see test_grid_stability.py, test_map_elites_features.py).
+- Cascade evaluator: programs must pass stage thresholds; don't collapse stages.
+- Artifacts side-channel: <10KB goes in DB, larger to disk. JSON-serializable preferred.
+- Process worker model: workers load a database snapshot; don't assume shared state across iterations.
+- Checkpoint/resume must round-trip — touching database/state shapes requires updating checkpoint logic and tests.
+
+Watch out for
+
+- database.py is load-bearing and huge — changes ripple into islands, migration, checkpointing, MAP-Elites. Read the relevant tests before editing.
+- Recent fixes (see git log) addressed island distribution bugs and snapshot artifact limits — regressions are easy here.
+- Async + multiprocessing boundary (see test_novelty_asyncio_issue.py, test_process_parallel*): be careful mixing asyncio LLM calls with ProcessPool workers.
+- Prompt templates have a custom-dir resolution path that warns when missing (recent commit); keep that warning behavior.
+- Testing guidance (from your CLAUDE.md): don't add overlapping tests; test the smallest scope (e.g. one validator method) rather than running the full evolution loop for edge cases.
+- Format with Black before committing: make lint.
+
+Typical change recipes
+
+- New LLM provider → subclass in openevolve/llm/, wire into ensemble.py, add config in config.py.
+- New evolution feature dimension → extend MAP-Elites feature extraction in database.py, add targeted test in tests/test_map_elites_features.py.
+- New example task → copy an examples/<task>/ dir (initial_program.py + evaluator.py + config.yaml).
