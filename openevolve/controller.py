@@ -83,8 +83,15 @@ class OpenEvolve:
         )
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Durable per-call token-usage log. Workers inherit this env var via spawn.
+        # Durable per-call token-usage log. Workers inherit these env vars via spawn.
+        import uuid as _uuid
+
         os.environ["OPENEVOLVE_USAGE_LOG"] = os.path.join(self.output_dir, "usage.jsonl")
+        os.environ["OPENEVOLVE_RUN_ID"] = _uuid.uuid4().hex[:12]
+        from openevolve.llm.usage import write_event as _write_event
+
+        _write_event("run_start", output_dir=self.output_dir)
+        self.run_id = os.environ["OPENEVOLVE_RUN_ID"]
 
         # Set up logging
         self._setup_logging()

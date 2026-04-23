@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from openevolve import OpenEvolve
 from openevolve.config import Config, load_config
 from openevolve.integrations.slack import format_run_failure, format_run_result, notify
-from openevolve.llm.usage import summarize as summarize_usage
+from openevolve.llm.usage import summarize as summarize_usage, write_event as write_usage_event
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,12 @@ async def main_async() -> int:
             print(f"To resume, use: --checkpoint {latest_checkpoint}")
 
         usage_path = os.path.join(openevolve.output_dir, "usage.jsonl")
-        usage_summary = summarize_usage(usage_path) if os.path.exists(usage_path) else None
+        usage_summary = (
+            summarize_usage(usage_path, run_id=os.environ.get("OPENEVOLVE_RUN_ID"))
+            if os.path.exists(usage_path)
+            else None
+        )
+        write_usage_event("run_end", status="success")
         notify(
             format_run_result(
                 program_id=getattr(best_program, "id", "?"),
@@ -180,6 +185,7 @@ async def main_async() -> int:
         import traceback
 
         traceback.print_exc()
+        write_usage_event("run_end", status="error", error=str(e))
         notify(format_run_failure(str(e)))
         return 1
 

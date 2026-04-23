@@ -88,21 +88,39 @@ def _handle_stats(args: list[str]) -> str:
 
 
 def _handle_tokens(args: list[str]) -> str:
-    """Summarize token usage from the most recent run's usage.jsonl."""
+    """Summarize token usage from usage.jsonl.
+
+    Usage: `/openevolve tokens` (latest run) | `tokens all` | `tokens <run_id>`
+    """
     import glob
 
     from openevolve.llm.usage import summarize
 
-    # Find the most recently modified usage.jsonl under any openevolve_output/ tree
-    # rooted at CWD. Users typically run from an example dir, so CWD is the right base.
     candidates = glob.glob("**/openevolve_output/usage.jsonl", recursive=True)
     if not candidates:
         return "No `usage.jsonl` found under the current directory."
     path = max(candidates, key=lambda p: os.path.getmtime(p))
-    s = summarize(path)
+
+    arg = (args[0] if args else "latest").strip()
+    run_id_filter: Optional[str]
+    scope: str
+    if arg == "all":
+        run_id_filter = None
+        scope = "all runs"
+    elif arg == "latest":
+        run_id_filter = "latest"
+        scope = "latest run"
+    else:
+        run_id_filter = arg
+        scope = f"run `{arg}`"
+
+    s = summarize(path, run_id=run_id_filter)
     if s["calls"] == 0:
-        return f"`{path}` is empty — no calls recorded yet."
-    lines = [f"*Token usage* (from `{path}`)", f"Total calls: {s['calls']}"]
+        return f"No calls recorded for {scope} in `{path}`."
+    header = f"*Token usage* — {scope}"
+    if s.get("run_id"):
+        header += f" (`{s['run_id']}`)"
+    lines = [header, f"Total calls: {s['calls']}"]
     for (provider, model), b in sorted(s["per_model"].items()):
         lines.append(
             f"• `{provider}/{model}` — {b['calls']} calls, "
