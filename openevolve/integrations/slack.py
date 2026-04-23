@@ -180,7 +180,85 @@ def _handle_tokens(args: list[str]) -> str:
 
 
 def _handle_rerun(args: list[str]) -> str:
-    return "rerun: not yet wired — will re-launch the last experiment"
+    """Re-launch the most recently started run using its manifest.
+
+    Usage:
+      /openevolve rerun              -> relaunch if previous run has ended
+      /openevolve rerun force        -> relaunch even if previous is still running
+    """
+    import subprocess
+
+    from openevolve.llm.usage import get_log_path
+    from openevolve.run_manifest import load_last_run
+
+    manifest = load_last_run()
+    if not manifest:
+        return (
+            "No previous run found. Start one locally first; rerun reads "
+            "`~/.openevolve/last_run.json`."
+        )
+
+    force = bool(args and args[0] == "force")
+    if not force and _run_still_active(manifest):
+        return (
+            f":warning: Previous run `{manifest.get('run_id')}` has no `run_end` "
+            "marker — it may still be active. Use `/openevolve rerun force` to launch anyway."
+        )
+
+    argv = manifest.get("argv") or []
+    cwd = manifest.get("cwd")
+    if not argv or not cwd:
+        return f":x: Manifest is incomplete: {manifest}"
+
+    try:
+        # Detached: don't hold the bot while the run executes.
+        subprocess.Popen(
+            argv,
+            cwd=cwd,
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.exception("Failed to spawn rerun")
+        return f":x: Could not spawn rerun: {e}"
+
+    return (
+        f":arrows_counterclockwise: Rerun launched in `{cwd}`\n"
+        f"Previous run: `{manifest.get('run_id')}` — "
+        "a new `run_started` message will follow once the controller initializes."
+    )
+
+
+def _run_still_active(manifest: dict) -> bool:
+    """True if the previous run's usage.jsonl has a run_start without a matching run_end."""
+    import json as _json
+
+    out = manifest.get("output_dir")
+    run_id = manifest.get("run_id")
+    if not out or not run_id:
+        return False
+    log_path = os.path.join(out, "usage.jsonl")
+    if not os.path.exists(log_path):
+        return False
+    saw_start = False
+    saw_end = False
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    row = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                if row.get("run_id") != run_id:
+                    continue
+                if row.get("event") == "run_start":
+                    saw_start = True
+                elif row.get("event") == "run_end":
+                    saw_end = True
+    except OSError:
+        return False
+    return saw_start and not saw_end
 
 
 _SUBCOMMANDS = {
