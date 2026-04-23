@@ -111,13 +111,30 @@ async def main_async() -> int:
             for i, model in enumerate(config.llm.models):
                 print(f"  Model {i+1}: {model.name} (weight: {model.weight})")
 
+    # Compute a timestamped output dir so consecutive runs don't overwrite each
+    # other and are naturally sorted chronologically. If --output is explicit,
+    # we honor it verbatim; otherwise append a run-start timestamp to the
+    # default "<initial_program_dir>/openevolve_output".
+    from datetime import datetime as _dt
+
+    if args.output:
+        resolved_output_dir = args.output
+    else:
+        ts = _dt.now().strftime("%Y%m%d-%H%M%S")
+        resolved_output_dir = os.path.join(
+            os.path.dirname(os.path.abspath(args.initial_program)),
+            f"openevolve_output-{ts}",
+        )
+
+    experiment_name = os.path.basename(os.getcwd())
+
     # Initialize OpenEvolve
     try:
         openevolve = OpenEvolve(
             initial_program_path=args.initial_program,
             evaluation_file=args.evaluation_file,
             config=config,
-            output_dir=args.output,
+            output_dir=resolved_output_dir,
         )
 
         # Load from checkpoint if specified
@@ -156,8 +173,10 @@ async def main_async() -> int:
                 iterations=args.iterations
                 if args.iterations is not None
                 else getattr(config, "max_iterations", None),
+                experiment=experiment_name,
             )
         )
+
 
         # Run evolution
         best_program = await openevolve.run(
@@ -207,6 +226,8 @@ async def main_async() -> int:
                 checkpoint_path=latest_checkpoint,
                 usage_summary=usage_summary,
                 run_id=run_id,
+                experiment=experiment_name,
+                initial_metrics=getattr(openevolve, "initial_metrics", None),
             )
         )
         return 0
@@ -249,6 +270,7 @@ async def main_async() -> int:
                 iterations_completed=iterations_completed,
                 best_metrics=best_metrics,
                 usage_summary=usage_summary,
+                experiment=experiment_name,
             )
         )
         return 1

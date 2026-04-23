@@ -301,6 +301,8 @@ class OpenEvolve:
             initial_metrics = await self.evaluator.evaluate_program(
                 self.initial_program_code, initial_program_id
             )
+            # Expose to the CLI for improvement reporting.
+            self.initial_metrics = dict(initial_metrics or {})
 
             initial_program = Program(
                 id=initial_program_id,

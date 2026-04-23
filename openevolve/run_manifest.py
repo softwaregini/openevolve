@@ -42,6 +42,7 @@ def write_manifest(
     """
     manifest = {
         "run_id": run_id,
+        "experiment": os.path.basename(os.path.abspath(cwd)),
         "started_at": datetime.now(tz=timezone.utc).isoformat(),
         "argv": list(argv),
         "cwd": os.path.abspath(cwd),

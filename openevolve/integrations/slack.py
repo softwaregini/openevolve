@@ -35,9 +35,13 @@ def format_run_start(
     output_dir: str,
     models: Optional[list] = None,
     iterations: Optional[int] = None,
+    experiment: Optional[str] = None,
 ) -> str:
     """Format a 'run started' message for Slack."""
-    lines = [f":rocket: *OpenEvolve run started* — `{run_id}`"]
+    header = ":rocket: *OpenEvolve run started*"
+    if experiment:
+        header += f" — `{experiment}`"
+    lines = [header, f"*Run id:* `{run_id}`"]
     if models:
         lines.append(f"*Models:* {', '.join(models)}")
     if iterations is not None:
@@ -46,23 +50,40 @@ def format_run_start(
     return "\n".join(lines)
 
 
+def _format_delta(old: float, new: float) -> str:
+    delta = new - old
+    sign = "+" if delta >= 0 else ""
+    return f"{sign}{delta:.4f}"
+
+
 def format_run_result(
     program_id: str,
     metrics: dict,
     checkpoint_path: Optional[str] = None,
     usage_summary: Optional[dict] = None,
     run_id: Optional[str] = None,
+    experiment: Optional[str] = None,
+    initial_metrics: Optional[dict] = None,
 ) -> str:
     """Format a run summary for Slack (Markdown-ish, Slack-flavored)."""
     header = ":white_check_mark: *OpenEvolve run complete*"
+    if experiment:
+        header += f" — `{experiment}`"
+    lines = [header]
     if run_id:
-        header += f" — run `{run_id}`"
-    lines = [header, f"Best program: `{program_id}`"]
+        lines.append(f"*Run id:* `{run_id}`")
+    lines.append(f"*Best program:* `{program_id}`")
     if metrics:
-        lines.append("*Metrics:*")
+        lines.append("*Metrics (best → vs initial):*" if initial_metrics else "*Metrics:*")
         for k, v in metrics.items():
             if isinstance(v, (int, float)):
-                lines.append(f"  • `{k}`: {v:.4f}")
+                if initial_metrics and isinstance(initial_metrics.get(k), (int, float)):
+                    delta = _format_delta(initial_metrics[k], v)
+                    lines.append(
+                        f"  • `{k}`: {v:.4f}  (initial {initial_metrics[k]:.4f} · Δ {delta})"
+                    )
+                else:
+                    lines.append(f"  • `{k}`: {v:.4f}")
             else:
                 lines.append(f"  • `{k}`: {v}")
     if usage_summary and usage_summary.get("calls"):
@@ -83,11 +104,15 @@ def format_run_failure(
     iterations_completed: Optional[int] = None,
     best_metrics: Optional[dict] = None,
     usage_summary: Optional[dict] = None,
+    experiment: Optional[str] = None,
 ) -> str:
     header = ":x: *OpenEvolve run failed*"
+    if experiment:
+        header += f" — `{experiment}`"
+    lines = [header]
     if run_id:
-        header += f" — run `{run_id}`"
-    lines = [header, f"```{error}```"]
+        lines.append(f"*Run id:* `{run_id}`")
+    lines.append(f"```{error}```")
     if iterations_completed is not None:
         lines.append(f"*Iterations completed:* {iterations_completed}")
     if best_metrics:
