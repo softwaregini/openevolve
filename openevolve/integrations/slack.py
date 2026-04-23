@@ -350,8 +350,14 @@ _SUBCOMMANDS = {
 }
 
 
+def _clean_arg(s: str) -> str:
+    """Strip Slack-added decorators (backticks, bold/italic markers, whitespace)."""
+    return s.strip().strip("`*_ ").strip()
+
+
 def _dispatch(text: str) -> str:
-    parts = shlex.split(text or "")
+    parts = [_clean_arg(p) for p in shlex.split(text or "")]
+    parts = [p for p in parts if p]
     if not parts:
         return (
             "Usage: `/openevolve <subcommand>`\n"
