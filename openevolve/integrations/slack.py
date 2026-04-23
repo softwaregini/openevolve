@@ -340,7 +340,29 @@ def _handle_run(args: list[str]) -> str:
     )
 
 
+def _handle_help(args: list[str]) -> str:
+    """Show available subcommands."""
+    lines = ["*OpenEvolve Slack commands*"]
+    # Keep ordering logical (discovery → action → monitoring), not alphabetical.
+    for name in ("help", "ping", "list", "run", "rerun", "stats", "tokens"):
+        desc = _SUBCOMMAND_HELP.get(name, "")
+        lines.append(f"• `/openevolve {name}` — {desc}")
+    return "\n".join(lines)
+
+
+_SUBCOMMAND_HELP = {
+    "help": "show this message",
+    "ping": "health check (bot is alive)",
+    "list": "list experiments under `experiments/`",
+    "run": "launch an experiment: `run <name>`",
+    "rerun": "re-launch the last run (`rerun force` to override the active-run guard)",
+    "stats": "summary of the latest run's best program",
+    "tokens": "token usage: `tokens` (latest) | `tokens all` | `tokens <run_id>`",
+}
+
+
 _SUBCOMMANDS = {
+    "help": _handle_help,
     "ping": _handle_ping,
     "stats": _handle_stats,
     "tokens": _handle_tokens,
@@ -359,15 +381,11 @@ def _dispatch(text: str) -> str:
     parts = [_clean_arg(p) for p in shlex.split(text or "")]
     parts = [p for p in parts if p]
     if not parts:
-        return (
-            "Usage: `/openevolve <subcommand>`\n"
-            "Subcommands: " + ", ".join(sorted(_SUBCOMMANDS)) + "\n"
-            "Try `/openevolve ping`."
-        )
+        return _handle_help([])
     name, *rest = parts
     handler = _SUBCOMMANDS.get(name)
     if not handler:
-        return f"Unknown subcommand `{name}`. Known: {', '.join(sorted(_SUBCOMMANDS))}"
+        return f":question: Unknown subcommand `{name}`.\n\n" + _handle_help([])
     try:
         return handler(rest)
     except Exception as e:
