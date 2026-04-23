@@ -11,6 +11,23 @@ from openevolve.llm.base import LLMInterface
 from openevolve.llm.openai import OpenAILLM
 from openevolve.config import LLMModelConfig
 
+
+def _build_client(model_cfg: LLMModelConfig) -> LLMInterface:
+    """Instantiate the right LLM client for a model config.
+
+    Precedence:
+      1. Explicit `init_client` callable (programmatic override).
+      2. `provider` field ("bedrock" → BedrockLLM, else OpenAILLM).
+    """
+    if model_cfg.init_client:
+        return model_cfg.init_client(model_cfg)
+    provider = (getattr(model_cfg, "provider", None) or "openai").lower()
+    if provider == "bedrock":
+        from openevolve.llm.bedrock import BedrockLLM
+
+        return BedrockLLM(model_cfg)
+    return OpenAILLM(model_cfg)
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,10 +38,7 @@ class LLMEnsemble:
         self.models_cfg = models_cfg
 
         # Initialize models from the configuration
-        self.models = [
-            model_cfg.init_client(model_cfg) if model_cfg.init_client else OpenAILLM(model_cfg)
-            for model_cfg in models_cfg
-        ]
+        self.models = [_build_client(model_cfg) for model_cfg in models_cfg]
 
         # Extract and normalize model weights
         self.weights = [model.weight for model in models_cfg]

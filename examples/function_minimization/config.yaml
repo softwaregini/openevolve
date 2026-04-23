@@ -4,20 +4,14 @@ checkpoint_interval: 5
 
 # LLM configuration
 llm:
-  primary_model: "gemini-2.5-flash-lite"
-  # primary_model: "gpt-5-mini"
-  # primary_model: "llama3.1-8b"
-  primary_model_weight: 0.8
-  secondary_model: "gemini-2.5-flash"
-  # secondary_model: "llama-4-scout-17b-16e-instruct"
-  # secondary_model: "gpt-5-nano"
-  secondary_model_weight: 0.2
-  api_base: "https://generativelanguage.googleapis.com/v1beta/openai/"
-  # api_base: "https://api.cerebras.ai/v1"
-  # api_base: "https://api.openai.com/v1"
-  temperature: 0.7
-  max_tokens: 16000
-  timeout: 120
+  models:
+    - name: "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+      provider: "bedrock"
+      region: "eu-central-1"
+      weight: 0.8
+      temperature: 0.7
+      max_tokens: 4096
+      timeout: 120
 
 # Prompt configuration
 prompt:

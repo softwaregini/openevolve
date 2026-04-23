@@ -960,6 +960,14 @@ Local Python environment
 - Python >=3.10 required. We use pyenv with a virtualenv called `openev` on 3.12.6; `.python-version` (gitignored) activates it on `cd`.
 - Setup from scratch: `pyenv virtualenv 3.12.6 openev && pyenv local openev && pip install -e '.[dev]'`.
 
+AWS Bedrock provider
+
+- Install extra: `pip install -e '.[bedrock]'` (adds boto3).
+- Enable the desired models in the AWS Bedrock console (Model access).
+- Auth: standard boto3 chain (env vars, `~/.aws/credentials`, IAM role). No `api_key` in config.
+- In `config.yaml`, use the `models:` list with `provider: "bedrock"` and `name:` set to a Bedrock model ID. Example: `configs/bedrock_example.yaml`.
+- Implementation: `openevolve/llm/bedrock.py` — uses Bedrock's Converse API, so one class handles Claude/Llama/Titan/Mistral.
+
 Slack bot (Socket Mode)
 
 Thin wrapper in `openevolve/integrations/slack.py`, entrypoint `scripts/slack_bot.py`. Lets you drive experiments from Slack via `/openevolve <subcommand>` without exposing any public URL.

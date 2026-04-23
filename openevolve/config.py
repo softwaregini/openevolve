@@ -56,6 +56,13 @@ class LLMModelConfig:
     api_key: Optional[str] = None
     name: str = None
 
+    # Provider selector: "openai" (default, OpenAI-compat endpoints) or "bedrock".
+    # When set to "bedrock", the ensemble instantiates BedrockLLM instead of OpenAILLM.
+    provider: Optional[str] = None
+
+    # AWS region for Bedrock (falls back to AWS_REGION / AWS_DEFAULT_REGION env vars).
+    region: Optional[str] = None
+
     # Custom LLM client
     init_client: Optional[Callable] = None
 

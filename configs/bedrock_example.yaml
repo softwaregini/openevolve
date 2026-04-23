@@ -1,0 +1,43 @@
+# Example config using AWS Bedrock as the LLM provider.
+#
+# Requirements:
+#   pip install -e '.[bedrock]'
+#   AWS credentials resolvable by the default boto3 chain
+#     (env vars, ~/.aws/credentials, or an instance/role profile).
+#   The Bedrock model(s) below must be enabled in your AWS account
+#     (Bedrock console → Model access).
+#
+# Note: `name` is the Bedrock model ID, not a display name.
+max_iterations: 10
+checkpoint_interval: 5
+
+llm:
+  models:
+    - name: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+      provider: "bedrock"
+      region: "us-east-1"
+      weight: 0.8
+      temperature: 0.7
+      max_tokens: 4096
+      timeout: 120
+    - name: "anthropic.claude-3-5-haiku-20241022-v1:0"
+      provider: "bedrock"
+      region: "us-east-1"
+      weight: 0.2
+      temperature: 0.7
+      max_tokens: 4096
+      timeout: 120
+
+prompt:
+  system_message: "You are an expert programmer. Improve the given code."
+
+database:
+  population_size: 50
+  num_islands: 3
+
+evaluator:
+  timeout: 60
+  parallel_evaluations: 3
+
+diff_based_evolution: true
+max_code_length: 20000
