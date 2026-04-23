@@ -41,7 +41,7 @@ def format_run_start(
         lines.append(f"*Models:* {', '.join(models)}")
     if iterations is not None:
         lines.append(f"*Iterations:* {iterations}")
-    lines.append(f"*Output:* `{output_dir}`")
+    lines.append(f"*Output dir:* `{output_dir}`")
     return "\n".join(lines)
 
 

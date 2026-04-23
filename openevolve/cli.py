@@ -153,7 +153,9 @@ async def main_async() -> int:
                 run_id=run_id,
                 output_dir=openevolve.output_dir,
                 models=[m.name for m in config.llm.models] or None,
-                iterations=args.iterations,
+                iterations=args.iterations
+                if args.iterations is not None
+                else getattr(config, "max_iterations", None),
             )
         )
 
