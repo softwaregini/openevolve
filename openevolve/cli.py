@@ -11,8 +11,14 @@ from typing import Dict, List, Optional
 
 from openevolve import OpenEvolve
 from openevolve.config import Config, load_config
-from openevolve.integrations.slack import format_run_failure, format_run_result, notify
+from openevolve.integrations.slack import (
+    format_run_failure,
+    format_run_result,
+    format_run_start,
+    notify,
+)
 from openevolve.llm.usage import summarize as summarize_usage, write_event as write_usage_event
+from openevolve.run_manifest import write_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +135,28 @@ async def main_async() -> int:
         if args.log_level:
             logging.getLogger().setLevel(getattr(logging, args.log_level))
 
+        # Record the run manifest so /openevolve rerun can reproduce it, and
+        # announce the run start to Slack. Best-effort: never block the run.
+        run_id = os.environ.get("OPENEVOLVE_RUN_ID", "?")
+        try:
+            write_manifest(
+                output_dir=openevolve.output_dir,
+                run_id=run_id,
+                argv=sys.argv,
+                cwd=os.getcwd(),
+                config_path=args.config,
+            )
+        except Exception as e:
+            logger.warning("Could not write run manifest: %s", e)
+        notify(
+            format_run_start(
+                run_id=run_id,
+                output_dir=openevolve.output_dir,
+                models=[m.name for m in config.llm.models] or None,
+                iterations=args.iterations,
+            )
+        )
+
         # Run evolution
         best_program = await openevolve.run(
             iterations=args.iterations,
@@ -176,6 +204,7 @@ async def main_async() -> int:
                 metrics=dict(best_program.metrics or {}),
                 checkpoint_path=latest_checkpoint,
                 usage_summary=usage_summary,
+                run_id=run_id,
             )
         )
         return 0
@@ -186,7 +215,18 @@ async def main_async() -> int:
 
         traceback.print_exc()
         write_usage_event("run_end", status="error", error=str(e))
-        notify(format_run_failure(str(e)))
+        log_dir = None
+        try:
+            log_dir = os.path.join(openevolve.output_dir, "logs")
+        except NameError:
+            pass
+        notify(
+            format_run_failure(
+                str(e),
+                run_id=os.environ.get("OPENEVOLVE_RUN_ID"),
+                log_dir=log_dir,
+            )
+        )
         return 1
 
 

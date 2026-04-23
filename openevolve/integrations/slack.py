@@ -29,14 +29,34 @@ def _require(name: str) -> str:
     return value
 
 
+def format_run_start(
+    run_id: str,
+    output_dir: str,
+    models: Optional[list] = None,
+    iterations: Optional[int] = None,
+) -> str:
+    """Format a 'run started' message for Slack."""
+    lines = [f":rocket: *OpenEvolve run started* — `{run_id}`"]
+    if models:
+        lines.append(f"*Models:* {', '.join(models)}")
+    if iterations is not None:
+        lines.append(f"*Iterations:* {iterations}")
+    lines.append(f"*Output:* `{output_dir}`")
+    return "\n".join(lines)
+
+
 def format_run_result(
     program_id: str,
     metrics: dict,
     checkpoint_path: Optional[str] = None,
     usage_summary: Optional[dict] = None,
+    run_id: Optional[str] = None,
 ) -> str:
     """Format a run summary for Slack (Markdown-ish, Slack-flavored)."""
-    lines = [f":white_check_mark: *OpenEvolve run complete* — best program `{program_id}`"]
+    header = ":white_check_mark: *OpenEvolve run complete*"
+    if run_id:
+        header += f" — run `{run_id}`"
+    lines = [header, f"Best program: `{program_id}`"]
     if metrics:
         lines.append("*Metrics:*")
         for k, v in metrics.items():
@@ -55,8 +75,18 @@ def format_run_result(
     return "\n".join(lines)
 
 
-def format_run_failure(error: str) -> str:
-    return f":x: *OpenEvolve run failed*\n```{error}```"
+def format_run_failure(
+    error: str,
+    run_id: Optional[str] = None,
+    log_dir: Optional[str] = None,
+) -> str:
+    header = ":x: *OpenEvolve run failed*"
+    if run_id:
+        header += f" — run `{run_id}`"
+    lines = [header, f"```{error}```"]
+    if log_dir:
+        lines.append(f"*Logs:* `{log_dir}`")
+    return "\n".join(lines)
 
 
 def notify(text: str, channel: Optional[str] = None) -> None:
