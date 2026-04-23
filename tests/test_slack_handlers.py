@@ -121,5 +121,47 @@ class RerunHandlerTest(unittest.TestCase):
         mock_popen.assert_called_once()
 
 
+class StatsHandlerTest(unittest.TestCase):
+    """/openevolve stats — reads latest run's artifacts."""
+
+    def test_no_run(self):
+        with patch("openevolve.run_manifest.load_last_run", return_value=None):
+            msg = slack._handle_stats([])
+        self.assertIn("No previous run found", msg)
+
+    def test_renders_success_with_metrics(self):
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "checkpoints", "checkpoint_5"))
+            os.makedirs(os.path.join(out, "best"))
+            with open(os.path.join(out, "best", "best_program_info.json"), "w") as f:
+                json.dump({"id": "p-xyz", "metrics": {"score": 0.87}}, f)
+            with open(os.path.join(out, "usage.jsonl"), "w") as f:
+                f.write(json.dumps({
+                    "ts": "2026-01-01T00:00:00+00:00",
+                    "event": "run_start", "run_id": "r1",
+                }) + "\n")
+                f.write(json.dumps({
+                    "ts": "2026-01-01T00:00:05+00:00", "run_id": "r1",
+                    "provider": "bedrock", "model": "m",
+                    "input_tokens": 100, "output_tokens": 50, "total_tokens": 150,
+                }) + "\n")
+                f.write(json.dumps({
+                    "ts": "2026-01-01T00:00:10+00:00",
+                    "event": "run_end", "run_id": "r1", "status": "success",
+                }) + "\n")
+            manifest = {
+                "run_id": "r1",
+                "output_dir": out,
+                "started_at": "2026-01-01T00:00:00+00:00",
+            }
+            with patch("openevolve.run_manifest.load_last_run", return_value=manifest):
+                msg = slack._handle_stats([])
+        self.assertIn("success", msg)
+        self.assertIn("Iterations:* 5", msg)
+        self.assertIn("p-xyz", msg)
+        self.assertIn("score", msg)
+        self.assertIn("150 total tokens", msg)
+
+
 if __name__ == "__main__":
     unittest.main()

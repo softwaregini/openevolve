@@ -133,7 +133,112 @@ def _handle_ping(args: list[str]) -> str:
 
 
 def _handle_stats(args: list[str]) -> str:
-    return "stats: not yet wired — will read from the active checkpoint directory"
+    """Summary of the latest run: status, iterations, best metrics, tokens."""
+    import json as _json
+    from datetime import datetime, timezone
+
+    from openevolve.llm.usage import summarize
+    from openevolve.run_manifest import load_last_run
+
+    manifest = load_last_run()
+    if not manifest:
+        return "No previous run found (no `~/.openevolve/last_run.json`)."
+
+    out = manifest.get("output_dir")
+    run_id = manifest.get("run_id")
+    started_at = manifest.get("started_at")
+    usage_path = os.path.join(out, "usage.jsonl") if out else None
+
+    # Status: scan usage.jsonl for this run's run_start / run_end
+    status = "running"
+    end_ts = None
+    error = None
+    if usage_path and os.path.exists(usage_path):
+        with open(usage_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    row = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                if row.get("run_id") != run_id:
+                    continue
+                if row.get("event") == "run_end":
+                    status = row.get("status") or "ended"
+                    end_ts = row.get("ts")
+                    error = row.get("error")
+
+    # Duration
+    duration_str = None
+    if started_at:
+        try:
+            start = datetime.fromisoformat(started_at)
+            end = datetime.fromisoformat(end_ts) if end_ts else datetime.now(tz=timezone.utc)
+            secs = int((end - start).total_seconds())
+            h, r = divmod(secs, 3600)
+            m, s = divmod(r, 60)
+            duration_str = f"{h}h{m:02d}m{s:02d}s" if h else f"{m}m{s:02d}s"
+        except Exception:
+            pass
+
+    # Iterations completed — highest numbered checkpoint dir
+    iterations = None
+    if out:
+        ckpt_dir = os.path.join(out, "checkpoints")
+        if os.path.isdir(ckpt_dir):
+            nums = []
+            for d in os.listdir(ckpt_dir):
+                if d.startswith("checkpoint_") and d.split("_")[-1].isdigit():
+                    nums.append(int(d.split("_")[-1]))
+            if nums:
+                iterations = max(nums)
+
+    # Best program info
+    best_metrics = None
+    best_id = None
+    if out:
+        info_path = os.path.join(out, "best", "best_program_info.json")
+        if os.path.exists(info_path):
+            try:
+                info = _json.loads(open(info_path, "r", encoding="utf-8").read())
+                best_metrics = info.get("metrics")
+                best_id = info.get("id") or info.get("program_id")
+            except Exception:
+                pass
+
+    # Token usage for this run
+    usage_line = None
+    if usage_path and os.path.exists(usage_path):
+        s = summarize(usage_path, run_id=run_id)
+        if s["calls"]:
+            t = s["total"]
+            usage_line = f"{s['calls']} calls, {t['total']} total tokens"
+
+    status_emoji = {"running": ":hourglass:", "success": ":white_check_mark:", "error": ":x:"}.get(
+        status, ":grey_question:"
+    )
+    lines = [f"*Run stats* — `{run_id}` {status_emoji} {status}"]
+    if error:
+        lines.append(f"*Error:* `{error}`")
+    if started_at:
+        lines.append(f"*Started:* {started_at}")
+    if duration_str:
+        lines.append(f"*Duration:* {duration_str}")
+    if iterations is not None:
+        lines.append(f"*Iterations:* {iterations}")
+    if best_id:
+        lines.append(f"*Best program:* `{best_id}`")
+    if best_metrics:
+        lines.append("*Best metrics:*")
+        for k, v in best_metrics.items():
+            if isinstance(v, (int, float)):
+                lines.append(f"  • `{k}`: {v:.4f}")
+            else:
+                lines.append(f"  • `{k}`: {v}")
+    if usage_line:
+        lines.append(f"*Tokens:* {usage_line}")
+    if out:
+        lines.append(f"*Output dir:* `{out}`")
+    return "\n".join(lines)
 
 
 def _handle_tokens(args: list[str]) -> str:
