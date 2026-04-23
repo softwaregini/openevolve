@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shlex
 from typing import Optional
 
@@ -261,11 +262,91 @@ def _run_still_active(manifest: dict) -> bool:
     return saw_start and not saw_end
 
 
+_EXPERIMENTS_DIR = "experiments"
+_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _experiments_root() -> str:
+    """Resolve experiments/ relative to the repo (parent of this package)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    # openevolve/integrations/slack.py -> repo root is two levels up
+    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    return os.path.join(repo_root, _EXPERIMENTS_DIR)
+
+
+def _handle_list(args: list[str]) -> str:
+    """List experiments under ./experiments/."""
+    root = _experiments_root()
+    if not os.path.isdir(root):
+        return (
+            f"No `{_EXPERIMENTS_DIR}/` directory yet. Create one at the repo root and "
+            "drop experiment subdirs into it."
+        )
+    names = sorted(
+        d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))
+    )
+    if not names:
+        return f"`{_EXPERIMENTS_DIR}/` is empty."
+    return "*Experiments:*\n" + "\n".join(f"• `{n}`" for n in names)
+
+
+def _handle_run(args: list[str]) -> str:
+    """Launch an experiment by name: /openevolve run <name>."""
+    import subprocess
+    import sys
+
+    if not args:
+        return "Usage: `/openevolve run <name>`. Use `/openevolve list` to see available names."
+    name = args[0]
+    if not _NAME_RE.match(name):
+        return (
+            f":x: Invalid experiment name `{name}`. "
+            "Allowed: letters, digits, underscore, hyphen."
+        )
+    exp_dir = os.path.join(_experiments_root(), name)
+    if not os.path.isdir(exp_dir):
+        return f":x: No experiment `{name}` under `{_EXPERIMENTS_DIR}/`."
+    initial = os.path.join(exp_dir, "initial_program.py")
+    evaluator = os.path.join(exp_dir, "evaluator.py")
+    config = os.path.join(exp_dir, "config.yaml")
+    missing = [p for p in (initial, evaluator, config) if not os.path.isfile(p)]
+    if missing:
+        return f":x: Experiment `{name}` is missing: {', '.join(os.path.basename(p) for p in missing)}"
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    argv = [
+        sys.executable,
+        os.path.join(repo_root, "openevolve-run.py"),
+        initial,
+        evaluator,
+        "--config",
+        config,
+    ]
+    try:
+        subprocess.Popen(
+            argv,
+            cwd=exp_dir,
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.exception("Failed to launch experiment %s", name)
+        return f":x: Could not launch `{name}`: {e}"
+    return (
+        f":rocket: Launched experiment `{name}` in `{exp_dir}`\n"
+        "A `run_started` Slack message will follow once the controller initializes."
+    )
+
+
 _SUBCOMMANDS = {
     "ping": _handle_ping,
     "stats": _handle_stats,
     "tokens": _handle_tokens,
     "rerun": _handle_rerun,
+    "list": _handle_list,
+    "run": _handle_run,
 }
 
 

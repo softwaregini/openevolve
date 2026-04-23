@@ -58,3 +58,6 @@ htmlcov/
 secrets.yaml
 problems
 .env
+
+# Local experiments (WIP, not shared)
+experiments/
